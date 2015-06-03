@@ -325,8 +325,6 @@ class Connection(base.Connection):
        :param resource: Optional resource filter.
        :param pagination: Optional pagination query.
        """
-        if pagination:
-            raise ceilometer.NotImplementedError('Pagination not implemented')
 
         s_filter = storage.SampleFilter(user=user,
                                         project=project,
@@ -442,6 +440,53 @@ class Connection(base.Connection):
                  " JOIN sources ON samples.source_id = sources.id")
 
         query = query.format(samples_subq)
+
+        if pagination:
+            #raise ceilometer.NotImplementedError('Pagination not implemented')
+            scalar_values = []
+            order_values = []
+            pagination_query = ' WHERE '
+
+            sort_keys = pagination.sort_keys
+            sort_dirs = pagination.sort_dirs
+            sort_keys.append('id')
+            sort_dirs.append(pagination.primary_sort_dir)
+
+            # Note (alexstav): get item (record) from DB by resource_id (UUID)
+            if pagination.marker_value:
+                marker_item = tuple()
+                marker_values = subq_values[:]
+                marker_values.append(pagination.marker_value)
+                marker_query = query + 'WHERE resources.resource_id = %s'
+
+                with PoolConnection(self.conn_pool) as cur:
+                    cur.execute(marker_query, marker_values)
+                    marker_item = cur.fetchone()
+                # Note (alexstav): column names in format:
+                # key - foreign table column (if exists),
+                # value - alias in current select (need for pagination)
+                marker_column_names = {'id': 'resources.resource_id',
+                                       'source_name', 'sources.name',
+                                       'user_id': 'users.uuid',
+                                       'project_id': 'projects.uuid',
+                                       'max_ts': 'max_ts',
+                                       'min_ts': 'min_ts',
+                                       'metadata': 'metadata'}
+                # Note (alexstav): get only those marker columns,
+                # that are in sort_keys list
+                marker_item = psql_utils.transform_marker_item(
+                    marker_item, marker_column_names.keys(), sort_keys)
+
+                scalar_query, scalar_values = (
+                    psql_utils.get_scalar_compare_query(keys,
+                                                        dirs,
+                                                        marker_item))
+
+                pagination_query += scalar_query
+                subq_values += scalar_values
+
+                pagination_query += psql_utils.transform_orderby(sort_keys,
+                                                                 sort_dirs)
 
         with PoolConnection(self.conn_pool) as cur:
             cur.execute(query, subq_values)
@@ -656,7 +701,8 @@ class Connection(base.Connection):
             sql_where_body, values = psql_utils.transform_filter(filter_expr)
             sql_query += sql_where_body
         if orderby:
-            sql_query += psql_utils.transform_orderby(orderby)
+            sql_query += psql_utils.transform_orderby(orderby.keys(),
+                                                      orderby.values())
         if limit:
             sql_query += ' LIMIT %s'
             values.append(limit)

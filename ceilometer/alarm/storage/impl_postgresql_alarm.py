@@ -318,7 +318,8 @@ class Connection(base.Connection):
             sql_where_body, values = psql_utils.transform_filter(filter_expr)
             sql_query += sql_where_body
         if orderby:
-            sql_query += psql_utils.transform_orderby(orderby)
+            sql_query += psql_utils.transform_orderby(orderby.keys(),
+                                                      orderby.values())
         if limit:
             sql_query += ' LIMIT %s'
             values.append(limit)
@@ -344,7 +345,8 @@ class Connection(base.Connection):
             sql_where_body, values = psql_utils.transform_filter(filter_expr)
             sql_query += sql_where_body
         if orderby:
-            sql_query += psql_utils.transform_orderby(orderby)
+            sql_query += psql_utils.transform_orderby(orderby.keys(),
+                                                      orderby.values())
         if limit:
             sql_query += ' LIMIT %s'
             values.append(limit)

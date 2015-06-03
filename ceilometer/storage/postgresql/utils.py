@@ -162,7 +162,55 @@ def transform_filter(tree):
     return ' WHERE ' + res, values
 
 
-def transform_orderby(orderby):
-    return ' ORDER BY ' + ', '.join(['%s %s' % (x.keys()[0], x.values()[0])
-                                     for x in orderby])
+def transform_orderby(keys, orders):
+    return ' ORDER BY %s' % ', '.join('%s %s' % (keys[n], orders[n])
+                                      for n in range(len(keys)))
 
+
+def get_scalar_compare_query(keys, dirs, marker):
+    cmp_signs = {'asc': '>', 'desc': '<'}
+    if len(keys) != len(dirs) != len(marker):
+        raise Exception
+    result = []
+    values = []
+    for n in range(len(keys)):
+        compare = ['%s=%%s' % k for k in keys[:n]]
+        values.extend(marker[:n])
+        compare.append('%s%s%%s' % (keys[n], cmp_signs[dirs[n]]))
+        values.append(marker[n])
+        result.append('(%s)' % ' and '.join(compare))
+    query = '(%s)' % ' or '.join(result)
+    return query, values
+
+
+def transform_marker_item(marker_tuple, column_names, sort_keys):
+    marker_dict = dict(zip(column_names, marker_tuple))
+    marker_list = [marker_dict[key] for key in sort_keys]
+    return marker_list
+
+
+def get_marker_item_query(sort_keys, table_name,
+                          sub_query=None, join_dict=None):
+    if sub_query:
+        table_name = ' as ' + table_name
+    else:
+        sub_query = ''
+
+    # Note(alexstav): query format:
+    # SELECT *needed columns* FROM *needed table or subquery*
+    # *joins* WHERE *ID_column* = %s
+    query = ('SELECT %(selected_columns)s FROM %(sub_query)s %(table)s'
+             '%(join)s WHERE %(id_column)s=%s;')
+    selected_columns = ', '.join(sort_keys)
+    # Note(alexstav): if column in sort_keys, join foreign table
+    joins = [join_dict[table] if any(table in key for key in sort_keys)
+             for table in join_dict.keys()]
+
+    # last element of sort_keys
+    id_column = sort_keys[-1]
+
+    query = query % {'selected_columns': selected_columns,
+                     'sub_query': sub_query,
+                     'table': table_name,
+                     'join':
+                     'id_column': id_column}
