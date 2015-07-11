@@ -191,6 +191,8 @@ def list_opts():
 logging.AUDIT = logging.INFO + 1
 logging.addLevelName(logging.AUDIT, 'AUDIT')
 
+# ITECO (alexstav) set user-request-audit level
+_REQ_AUDIT = 25
 
 try:
     NullHandler = logging.NullHandler
@@ -701,6 +703,7 @@ class ColorHandler(logging.StreamHandler):
         logging.DEBUG: '\033[00;32m',  # GREEN
         logging.INFO: '\033[00;36m',  # CYAN
         logging.AUDIT: '\033[01;36m',  # BOLD CYAN
+        _REQ_AUDIT: '\033[01;36m',  # BOLD CYAN
         logging.WARN: '\033[01;33m',  # BOLD YELLOW
         logging.ERROR: '\033[01;31m',  # BOLD RED
         logging.CRITICAL: '\033[01;31m',  # BOLD RED
